@@ -1,0 +1,45 @@
+﻿@model IEnumerable<MvcTest.Models.Models.ItemDetailModel>
+
+@{
+    ViewBag.Title = "ItemDetail";
+}
+
+<h2>ItemDetail</h2>
+
+
+<table class="table table-bordered">
+    <tr>
+
+        <th>
+            @Html.DisplayNameFor(model => model.ItemName)
+        </th>
+        <th>
+            @Html.DisplayNameFor(model => model.ItemQty)
+        </th>
+        <th>
+            @Html.DisplayNameFor(model => model.ItemAmount)
+        </th>
+        <th>
+            @Html.DisplayNameFor(model => model.OrderId)
+        </th>
+    </tr>
+
+@foreach (var item in Model) {
+<tr>
+
+    <td>
+        @Html.DisplayFor(modelItem => item.ItemName)
+    </td>
+    <td>
+        @Html.DisplayFor(modelItem => item.ItemQty)
+    </td>
+    <td>
+        @Html.DisplayFor(modelItem => item.ItemAmount)
+    </td>
+    <td>
+        @Html.DisplayFor(modelItem => item.OrderId)
+    </td>
+</tr>
+}
+
+</table>

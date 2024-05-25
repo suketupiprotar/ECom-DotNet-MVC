@@ -1,0 +1,228 @@
+﻿
+@{
+    ViewBag.Title = "CreateOrder";
+}
+
+<h2>CreateOrder</h2>
+
+
+<div class="container">
+    <p class="text-danger" style="float:right;font-size:16px;font-weight:600" id="orderErr"></p>
+    <div class="top">
+        <div class="dropdown">
+            @Html.Label("select item", new { @class = "form-label" })
+            @Html.DropDownList("Item", new SelectList(ViewBag.ItemList, "ItemId", "ItemName"), new { @class = "form-control" })
+            @Html.Label("Enter Quentity", new { @class = "form-label" })
+            @Html.TextBox("Qty", "", new { @class = "form-control", @type = "number" })
+            <p id="error" class="text-danger"></p>
+        </div>
+        <div class="addBtnDiv">
+            <button class="addBtn" id="createOrder">Add</button>
+        </div>
+    </div>
+
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th scope="col">Item Name</th>
+                <th scope="col">Qty</th>
+                <th scope="col">Amount</th>
+                <th scope="col">Total</th>
+                <th scope="col">Action</th>
+            </tr>
+        </thead>
+        <tbody id="ItemTableBody">
+            <tr><td colspan="5" style="text-align:center">No Item Addded</td></tr>
+        </tbody>
+    </table>
+
+    <div id="extraDetail" style="display:none">
+        <div class="gst">
+            <div class="sgst">
+                <div class="text">SGST  5%</div>
+                <div class="amount"></div>
+            </div>
+            <div class="cgst">
+                <div class="text">CGST  5%</div>
+                <div class="amount"></div>
+            </div>
+            <div class="payable">
+                <div class="text">Total Payble Amount</div>
+                <div class="amount"></div>
+            </div>
+        </div>
+        <div class="coupen">
+            <div class="text">Apply Coupen</div>
+            <div class="dropdown">
+                <input type="text" class="form-control" id="coupenCode" placeholder="Enter Coupen Code" />
+                <p class="text-danger" id="coupenErr"></p>
+                <p class="text-success" id="coupenSuccess"></p>
+            </div>
+            <div class="applyDiv">
+                <button class="applyBtn btn btn-primary">apply</button>
+            </div>
+        </div>
+        <div>
+            <div class="netpayble">
+                <div class="text">Net Payble Amount</div>
+                <div class="amount"></div>
+            </div>
+        </div>
+        <div class="addOrder">
+            <button class="btn btn-success btn-lg" id="createNewOrder">Create Order</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    var itemArray = [];
+    var obj = {};
+
+    function checkValidation() {
+        if ($("#Qty").val() <= 0 || !$("#Qty").val()) {
+            $("#error").text("Please Enter Valid Quentity");
+            return false;
+        }
+        else {
+            $("#error").text("");
+        }
+        return true;
+    }
+
+    function AddItemObjToArray() {
+        $.get(`/Home/GetItemById?ItemId=${$("#Item").val()}`, (data) => {
+            let newObjFromArray = itemArray.find(x => x.ItemId == data.ItemId)
+            if (newObjFromArray) {
+                newObjFromArray.ItemQty += parseInt($("#Qty").val());
+            }
+            else {
+                data.ItemQty = parseInt($("#Qty").val());
+                itemArray.push(data);
+            }
+        }).then(() => {
+            generateItemTable();
+        })
+    }
+
+    function generateItemTable() {
+        $("#ItemTableBody").empty();
+        itemArray.forEach(x => {
+            $("#ItemTableBody").append(`<tr>
+                            <td>${x.ItemName}</td>
+                            <td><input id=${x.ItemId} value="${x.ItemQty}" readonly><p class="text-danger"></p></td>
+                            <td>${x.ItemAmount}</td>
+                            <td>${x.ItemQty * x.ItemAmount}</td>
+                            <td><button data_id=${x.ItemId} style="margin-right:10px;" class="editBtn btn btn-primary">Edit</button><button class="deleteBtn btn btn-danger" data_id=${x.ItemId}>Delete</button></td>
+                       </tr>`)
+        })
+
+        obj = itemArray.reduce((acc, item) => {
+            acc.TotalItems += item.ItemQty;
+            acc.TotalAmount += item.ItemAmount * item.ItemQty;
+            return acc;
+        }, { TotalItems: 0, TotalAmount: 0 })
+
+        if (obj.TotalItems > 0) {
+            $("#extraDetail").show();
+        } else {
+            $("#extraDetail").hide();
+        }
+
+        $("#ItemTableBody").append(`<tr><td style="text-align:center" colspan="3">Total Items :- ${obj.TotalItems}</td><td style="text-align:center">Total Amount :- ${obj.TotalAmount}</td><td></td></tr>`)
+
+        obj.Sgst = obj.TotalAmount * 5 / 100;
+        obj.Cgst = obj.TotalAmount * 5 / 100;
+        obj.PaybleAmount = obj.TotalAmount + obj.Sgst + obj.Cgst;
+        obj.NetPaybleAmount = obj.TotalAmount + obj.Sgst + obj.Cgst;
+
+        $(".sgst>.amount").text(obj.Sgst);
+        $(".cgst>.amount").text(obj.Cgst);
+        $(".payable>.amount").text(obj.PaybleAmount);
+        $(".netpayble>.amount").text(obj.NetPaybleAmount);
+    }
+
+    $(".applyBtn").click((event) => {
+        $.get(`/Home/GetCoupenByCode?Code=${$("#coupenCode").val()}`, (data) => {
+            //console.log(data);
+            $("#coupenSuccess").text("");
+            $("#coupenErr").text("");
+            if (!obj.PaybleAmount) {
+                $("#coupenErr").text("Please add item first");
+            }
+            else if (data.length == 0) {
+                $("#coupenErr").text("Please enter valid coupen code");
+            }
+            else if (data[0].Expirydate > new Date()) {
+                $("#coupenErr").text("Coupen is expired");
+            }
+            else {
+                $("#coupenSuccess").text("Coupen Applied Successfully");
+                obj.PromoCode = data[0].Code;
+                obj.NetPaybleAmount = obj.PaybleAmount - data[0].FlatAmount - data[0].Percentage * obj.PaybleAmount / 100;
+                console.log(obj);
+                $(".netpayble>.amount").text(obj.NetPaybleAmount);
+            }
+        })
+    })
+
+    $("#createOrder").click(() => {
+        if (checkValidation()) {
+            AddItemObjToArray();
+        }
+    })
+
+    $(document).on("click", ".deleteBtn", (event) => {
+        itemArray.filter((item, index) => {
+            if (item.ItemId == $(event.target).attr("data_id")) {
+                itemArray.splice(index, 1)
+            }
+            generateItemTable();
+        })
+    })
+
+    $(document).on("click", ".editBtn", (event) => {
+        let ItemId = $(event.target).attr("data_id");
+
+        //console.log($(`input[id=${ItemId}]`));
+
+        $(`input[id=${ItemId}]`).removeAttr('readonly');
+
+        if ($(event.target).text() == "Edit") {
+            $(event.target).text("Save");
+            $(`input[id=${ItemId}]`)[0].focus();
+        }
+        else {
+            if ($(`input[id=${ItemId}]`).val() > 0) {
+                $(`input[id=${ItemId}]`).closest('td').find('p').text('');
+                $(event.target).text("Edit");
+                $(`input[id=${ItemId}]`).attr('readonly', true);
+                itemArray.find(x => x.ItemId == ItemId).ItemQty = parseInt($(`input[id=${ItemId}]`).val());
+
+                generateItemTable();
+            } else {
+                $(`input[id=${ItemId}]`).closest('td').find('p').text('please enter valid Quentity');
+            }
+        }
+    })
+
+    $("#createNewOrder").click(() => {
+        if (!obj.NetPaybleAmount) {
+            $("#orderErr").text("Please add atleast 1 item to list");
+        }
+        else {
+            $("#orderErr").text("");
+
+            $.post(`/Home/CreateNewOrder`,
+                {
+                    itemDetails: itemArray,
+                    ordersModel: obj
+                },
+                (data) => {
+                    alert(data);
+                    window.location.href = "/Home/RetriveOrders";
+                });
+        }
+    })
+</script>
+
+
